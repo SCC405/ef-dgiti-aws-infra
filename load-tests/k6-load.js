@@ -19,15 +19,24 @@ import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.2/index.js';
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
 const STRESS_N = __ENV.STRESS_N || '15000';
 
-export const options = {
-  stages: [
+// PERFIL=corto -> unos 90 s, para correrlo en vivo durante el video.
+const STAGES = __ENV.PERFIL === 'corto'
+  ? [
+    { duration: '20s', target: 40 },
+    { duration: '50s', target: 120 },
+    { duration: '20s', target: 0 },
+  ]
+  : [
     { duration: '30s', target: 20 },   // calentamiento
     { duration: '1m', target: 50 },    // carga normal
     { duration: '1m30s', target: 100 }, // carga alta
     { duration: '1m30s', target: 150 }, // saturación
     { duration: '1m', target: 150 },   // sostener
     { duration: '30s', target: 0 },    // bajada
-  ],
+  ];
+
+export const options = {
+  stages: STAGES,
   thresholds: {
     http_req_failed: ['rate<0.05'],     // menos de 5 % de errores
     http_req_duration: ['p(95)<3000'],  // 95 % por debajo de 3 s
