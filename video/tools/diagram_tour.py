@@ -30,13 +30,13 @@ REGIONES = {
 GUION = [
     (0, "todo"),
     (5, "entrada"),
-    (20, "vpc"),
-    (33, "asg"),
-    (43, "datos"),
-    (55, "seguridad"),
-    (61, "soporte"),
-    (67, "cicd"),
-    (77, "todo"),
+    (18, "vpc"),
+    (29, "asg"),
+    (39, "datos"),
+    (49, "seguridad"),
+    (59, "soporte"),
+    (66, "cicd"),
+    (75, "todo"),
 ]
 DURACION = 80
 

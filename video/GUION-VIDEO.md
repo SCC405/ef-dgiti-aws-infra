@@ -47,37 +47,37 @@ momento y **qué decir**. Arriba de cada escena el video muestra el nombre de qu
 > Balancer, que es lo único expuesto públicamente. El balanceador revisa cada 15 segundos
 > el endpoint /health de cada instancia para saber a cuáles mandarles tráfico."
 
-### 00:46 · Zoom: la VPC completa
+### 00:44 · Zoom: la VPC completa
 > "La VPC la dividimos en tres capas y todo está repetido en dos zonas de
 > disponibilidad. Arriba la capa pública, con el balanceador y el NAT Gateway; en el
 > medio la capa de aplicación; y abajo la capa de datos, que ni siquiera tiene ruta a
 > Internet."
 
-### 00:59 · Zoom: Auto Scaling Group
+### 00:55 · Zoom: Auto Scaling Group
 > "Las EC2 corren dentro de un Auto Scaling Group en subredes privadas: mínimo dos, una
 > por zona, y hasta cuatro si la CPU pasa del 50 %. Si una instancia o una zona se cae,
 > la otra sigue atendiendo y el grupo la reemplaza solo."
 
-### 01:09 · Zoom: capa de datos
+### 01:05 · Zoom: capa de datos
 > "La base es RDS PostgreSQL: la principal en la zona A recibe las escrituras, y una
 > réplica de lectura en la zona B atiende las consultas. Así repartimos la carga y
 > tenemos los datos en dos zonas."
 
-### 01:21 · Zoom: Security Groups
+### 01:15 · Zoom: Security Groups
 > "En seguridad, los Security Groups van encadenados: el balanceador acepta el 80 desde
 > Internet, las EC2 solo aceptan el 8000 desde el balanceador, y la base solo el 5432
 > desde las EC2. Nadie se puede saltar una capa."
 
-### 01:27 · Zoom: almacenamiento, secretos y monitoreo
+### 01:25 · Zoom: almacenamiento, secretos y monitoreo
 > "La contraseña de la base la genera Terraform y queda cifrada en SSM Parameter Store;
 > las instancias la leen con su rol, nunca está en el código. Los discos son EBS y todo
 > se monitorea en CloudWatch con alarmas."
 
-### 01:33 · Zoom: flujo CI/CD
+### 01:32 · Zoom: flujo CI/CD
 > "Y aquí abajo, en naranja, el despliegue: un push a GitHub dispara GitHub Actions,
 > que prueba, valida y actualiza las instancias. Eso lo muestra Erick."
 
-### 01:43 · Diagrama completo otra vez
+### 01:41 · Diagrama completo otra vez
 > "Esa es la arquitectura; ahora, cómo la construimos."
 
 ### 01:46 · Archivos de Terraform en GitHub
@@ -93,16 +93,16 @@ momento y **qué decir**. Arriba de cada escena el video muestra el nombre de qu
 > "Lo ejecutamos desde CloudShell, dentro de la cuenta, así no hay llaves guardadas en
 > ningún computador. Primero terraform init, que descarga los proveedores."
 
-### 02:28 · `terraform plan`
+### 02:25 · `terraform plan`
 > "Después terraform plan, que compara el código con lo que existe en AWS. Como ya está
 > desplegado, dice No changes: la infraestructura es exactamente igual al código. La
 > primera vez fueron 48 recursos y tardó unos veinte minutos; lo más lento fue la
 > réplica de RDS."
 
-### 02:45 · `terraform apply`
-> "El apply lo confirma: cero agregados, cero cambios, cero destruidos."
+### 02:37 · `terraform apply`
+> "El apply lo confirma: Apply complete, cero agregados, cero cambios, cero destruidos."
 
-### 02:55 · `terraform output`
+### 02:58 · `terraform output`
 > "Y terraform output nos da la URL del balanceador, la de Swagger, el nombre del Auto
 > Scaling Group y los endpoints de la base principal y la réplica. Le paso a Erick."
 
@@ -149,17 +149,17 @@ momento y **qué decir**. Arriba de cada escena el video muestra el nombre de qu
 > "Ahora el pipeline. Cada push a main dispara estas cuatro etapas en GitHub Actions, y
 > acá están todas en verde."
 
-### 04:52 · Job 1: lint y pruebas
+### 04:53 · Job 1: lint y pruebas
 *En pantalla: el log de pytest con las 12 pruebas PASSED y la cobertura.*
 > "La primera revisa el código con ruff y corre las pruebas con pytest: son doce pruebas
 > unitarias y de integración, todas pasan, con 88 % de cobertura. Las de integración
 > levantan la API completa contra una base de datos real."
 
-### 05:13 · Job 2: Docker
+### 05:11 · Job 2: Docker
 > "La segunda construye la imagen Docker y le hace una prueba de humo: levanta el
 > contenedor y le pega a /health, /status y a un POST."
 
-### 05:25 · Job 3: Terraform
+### 05:23 · Job 3: Terraform
 > "La tercera valida Terraform con fmt y validate: si alguien rompe el código de la
 > infraestructura, no pasa. Y la cuarta despliega a AWS con las credenciales guardadas
 > como secretos de GitHub, reemplazando las instancias de a una para no tumbar el
@@ -196,7 +196,7 @@ momento y **qué decir**. Arriba de cada escena el video muestra el nombre de qu
 > solicitudes por minuto suben y se quedan planas en unas 5.500: ese es el techo. Y el
 > tiempo de respuesta se dispara: el p95 llega a dos segundos."
 
-### 07:12 · CloudWatch: CPU y Auto Scaling
+### 07:13 · CloudWatch: CPU y Auto Scaling
 *En pantalla: CPU del ASG cruzando la línea roja del 50 % y llegando a 90 %; instancias de 2 a 4.*
 > "¿Por qué? La CPU de las instancias pasa la línea del 50 % y se queda en 90: las
 > t3.micro tienen solo dos vCPU y ese es el cuello de botella. A los tres minutos la
@@ -204,15 +204,14 @@ momento y **qué decir**. Arriba de cada escena el video muestra el nombre de qu
 > Nadie tocó nada. En el segundo pico, ya con cuatro, se atienden más de 11.000
 > solicitudes por minuto, el doble."
 
-### 07:35 · CloudWatch: RDS
-*En pantalla: CPU y conexiones de RDS, y el retraso de la réplica.*
+### 07:31 · CloudWatch: la prueba de ahora y RDS
+*En pantalla: el dashboard con los últimos 30 minutos: a la derecha, el pico de CPU de la prueba que acabamos de correr; abajo, RDS.*
+> "Esta es la vista de ahora: el pico de la derecha es la prueba que acabamos de correr."
+>
 > "Abajo, la base de datos casi no se inmuta: su CPU no pasa del 10 %, porque la carga
 > está en la aplicación. El retraso de la réplica sube en diente de sierra porque RDS lo
 > mide desde la última transacción: si no hay escrituras crece solo y se reinicia cada
 > cinco minutos. Lo importante es que lo que escribimos aparece de una en la réplica."
-
-### 07:52 · CloudWatch: últimos 30 minutos
-> "Y esta es la vista de ahora, con la prueba que acabamos de correr."
 
 ### 08:02 · Comparación 2 contra 4 instancias
 *En pantalla: la tabla de resultados del README.*
