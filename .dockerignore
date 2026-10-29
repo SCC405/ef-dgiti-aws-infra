@@ -1,0 +1,12 @@
+.git
+.github
+.venv
+infra
+docs
+evidencias
+salidas
+load-tests
+scripts
+tests
+**/__pycache__
+**/.terraform

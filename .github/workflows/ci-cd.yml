@@ -1,0 +1,166 @@
+name: CI-CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ASG_NAME: ef-dgiti-asg
+  ALB_NAME: ef-dgiti-alb
+
+jobs:
+  # -------------------------------------------------------------------------
+  # 1. Calidad del código y pruebas unitarias + integración
+  # -------------------------------------------------------------------------
+  test:
+    name: 1 - Lint y pruebas (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check app tests
+
+      - name: Pruebas unitarias e integración
+        run: pytest -v --junitxml=junit.xml --cov=app --cov-report=term --cov-report=xml
+
+      - name: Publicar reporte de pruebas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-pruebas
+          path: |
+            junit.xml
+            coverage.xml
+
+  # -------------------------------------------------------------------------
+  # 2. Imagen Docker + prueba de humo del contenedor
+  # -------------------------------------------------------------------------
+  docker:
+    name: 2 - Build Docker y smoke test
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir imagen
+        run: docker build -t ef-dgiti-api:${{ github.sha }} .
+
+      - name: Levantar contenedor y probar /health y /status
+        run: |
+          docker run -d --name api -p 8000:8000 -e DATABASE_URL=sqlite:// ef-dgiti-api:${{ github.sha }}
+          for i in $(seq 1 20); do curl -fs http://localhost:8000/health && break; sleep 1; done
+          curl -fs http://localhost:8000/health | grep '"status":"ok"'
+          curl -fs http://localhost:8000/status | grep '"primary":"ok"'
+          curl -fs -X POST http://localhost:8000/api/items -H 'Content-Type: application/json' -d '{"name":"ci"}'
+          docker logs api
+
+  # -------------------------------------------------------------------------
+  # 3. Validación de la infraestructura como código
+  # -------------------------------------------------------------------------
+  terraform:
+    name: 3 - Terraform fmt / validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: terraform init
+        run: terraform init -backend=false -input=false
+
+      - name: terraform validate
+        run: terraform validate
+
+  # -------------------------------------------------------------------------
+  # 4. Despliegue: rolling update del Auto Scaling Group en AWS Academy
+  #    Las credenciales llegan como GitHub Secrets, nunca están en el código.
+  # -------------------------------------------------------------------------
+  deploy:
+    name: 4 - Despliegue en AWS (instance refresh)
+    runs-on: ubuntu-latest
+    needs: [test, docker, terraform]
+    if: github.event_name != 'pull_request'
+    environment: aws-academy
+    steps:
+      - name: Verificar que existan los secretos
+        id: secrets
+        env:
+          KEY: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::warning::No hay secretos AWS configurados: se omite el despliegue."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configurar credenciales AWS (desde secrets)
+        if: steps.secrets.outputs.ok == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Identidad de la cuenta
+        if: steps.secrets.outputs.ok == 'true'
+        run: aws sts get-caller-identity --query Account --output text | sed 's/^\(....\).*/\1********/'
+
+      - name: Iniciar instance refresh (las nuevas EC2 clonan este commit)
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          ID=$(aws autoscaling start-instance-refresh \
+                --auto-scaling-group-name "$ASG_NAME" \
+                --preferences '{"MinHealthyPercentage":50,"InstanceWarmup":120}' \
+                --query InstanceRefreshId --output text)
+          echo "REFRESH_ID=$ID" >> "$GITHUB_ENV"
+          echo "Instance refresh iniciado: $ID"
+
+      - name: Esperar a que termine el rolling update
+        if: steps.secrets.outputs.ok == 'true'
+        timeout-minutes: 25
+        run: |
+          while true; do
+            read STATUS PCT <<< $(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name "$ASG_NAME" --instance-refresh-ids "$REFRESH_ID" \
+              --query 'InstanceRefreshes[0].[Status,PercentageComplete]' --output text)
+            echo "$(date +%T)  estado=$STATUS  avance=${PCT}%"
+            case "$STATUS" in
+              Successful) break ;;
+              Failed|Cancelled|RollbackSuccessful|RollbackFailed) exit 1 ;;
+            esac
+            sleep 30
+          done
+
+      - name: Prueba de humo contra el ALB
+        if: steps.secrets.outputs.ok == 'true'
+        run: |
+          DNS=$(aws elbv2 describe-load-balancers --names "$ALB_NAME" --query 'LoadBalancers[0].DNSName' --output text)
+          curl -fs "http://$DNS/health"
+          echo
+          for i in 1 2 3 4 5 6; do curl -fs "http://$DNS/status" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d["instance_id"], d["availability_zone"], "version", d["version"], "db", d["database"]["primary"], d["database"]["replica"])'; done
+          echo "### Desplegado en http://$DNS" >> "$GITHUB_STEP_SUMMARY"
