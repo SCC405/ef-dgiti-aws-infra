@@ -242,8 +242,12 @@ k6 run -e PERFIL=corto -e BASE_URL=http://<alb> load-tests/k6-load.js
 > **11.200 solicitudes por minuto, el doble**, y la latencia apenas se mueve.
 >
 > En **códigos HTTP** prácticamente todo es 2XX, y en **instancias sanas** se ve cómo
-> entran las dos nuevas. Abajo, la base de datos casi no se inmuta: la carga es de CPU en
-> la aplicación, no en RDS, y la réplica va prácticamente al día."
+> entran las dos nuevas. Abajo, la base de datos casi no se inmuta: la CPU de RDS no pasa
+> del 10 %, porque la carga es de CPU en la aplicación, no en la base. Y el retraso de la
+> réplica sube en diente de sierra: RDS lo mide como el tiempo desde la última transacción
+> replicada, así que cuando no hay escrituras crece solo y se reinicia cada cinco minutos.
+> Lo que importa es que, apenas escribimos, el dato aparece en la réplica, como vio Erick
+> en Swagger."
 
 ### 08:20 – 08:55 · Resultado de k6 y comparación
 

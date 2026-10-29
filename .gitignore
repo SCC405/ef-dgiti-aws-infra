@@ -20,3 +20,9 @@ crash.log
 .aws/
 *.pem
 .env
+
+# Video: crudos y temporales no van al repo
+video/raw/
+video/tmp/
+video/*.mp4
+

@@ -1,0 +1,26 @@
+[
+  {"tarjeta": true, "quien": "", "seg": 5, "titulo": "EF DGITI · Infraestructura en AWS", "subtitulo": "Despliegue, automatización y validación\nErick · Nicolay · Santiago"},
+
+  {"tarjeta": true, "quien": "Santiago", "seg": 3, "titulo": "Santiago", "subtitulo": "Arquitectura · Infraestructura como código"},
+  {"archivo": "s01-cuenta-p.mp4", "quien": "Santiago", "seg": 18, "rotulo": "Cuenta de AWS Academy (Learner Lab) y consola de AWS"},
+  {"archivo": "s02-diagrama.mp4", "quien": "Santiago", "seg": 80, "rotulo": "Arquitectura: diagrama con íconos oficiales de AWS"},
+  {"archivo": "s03-tf-archivos-p.mp4", "quien": "Santiago", "seg": 30, "rotulo": "Terraform: provider · variables · main · outputs · user_data"},
+  {"archivo": "s04-tf-comandos-p.mp4", "quien": "Santiago", "seg": 50, "rotulo": "terraform init · plan · apply · output  (CloudShell)"},
+
+  {"tarjeta": true, "quien": "Erick", "seg": 3, "titulo": "Erick", "subtitulo": "Servicio desplegado · Pipeline CI/CD"},
+  {"archivo": "s05-ec2-p.mp4", "quien": "Erick", "seg": 15, "rotulo": "Instancias EC2 en subredes privadas (us-east-1a y 1b)"},
+  {"archivo": "s06-endpoints-p.mp4", "quien": "Erick", "seg": 30, "rotulo": "Endpoints /health y /status a través del balanceador"},
+  {"archivo": "s07-swagger-p.mp4", "quien": "Erick", "seg": 42, "rotulo": "Swagger: POST escribe en la principal, GET lee de la réplica"},
+  {"archivo": "s08-curl-p.mp4", "quien": "Erick", "seg": 8, "rotulo": "curl al endpoint de validación"},
+  {"archivo": "s09a-pipeline-ci-p.mp4", "quien": "Erick", "seg": 55, "rotulo": "GitHub Actions: lint, pytest, Docker y Terraform"},
+
+  {"tarjeta": true, "quien": "Nicolay", "seg": 3, "titulo": "Nicolay", "subtitulo": "Desempeño · Balanceador · CloudWatch"},
+  {"archivo": "s10-target-group-p.mp4", "quien": "Nicolay", "seg": 16, "rotulo": "Target group: 2 instancias sanas en 2 zonas"},
+  {"archivo": "s11-balanceo-p.mp4", "quien": "Nicolay", "seg": 14, "rotulo": "Reparto del balanceador: 20 solicitudes a /status"},
+  {"archivo": "s12-k6-p.mp4", "quien": "Nicolay", "seg": 40, "rotulo": "Prueba de carga en vivo con k6 (hasta 120 usuarios)"},
+  {"archivo": "s13-cloudwatch-p.mp4", "quien": "Nicolay", "seg": 70, "rotulo": "CloudWatch: saturación con 2 EC2 y escalado a 4"},
+  {"archivo": "s15-comparacion-p.mp4", "quien": "Nicolay", "seg": 30, "rotulo": "Resultados: 2 vs 4 instancias"},
+  {"archivo": "s14-asg-p.mp4", "quien": "Nicolay", "seg": 25, "rotulo": "Auto Scaling: actividad disparada por las alarmas"},
+
+  {"tarjeta": true, "quien": "Nicolay", "seg": 8, "titulo": "Gracias", "subtitulo": "github.com/SCC405/ef-dgiti-aws-infra"}
+]

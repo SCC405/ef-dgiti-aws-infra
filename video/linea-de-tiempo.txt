@@ -1,0 +1,21 @@
+00:00.0            EF DGITI · Infraestructura en AWS
+00:05.0  Santiago  Santiago
+00:08.0  Santiago  Cuenta de AWS Academy (Learner Lab) y consola de AWS
+00:26.0  Santiago  Arquitectura: diagrama con íconos oficiales de AWS
+01:46.0  Santiago  Terraform: provider · variables · main · outputs · user_data
+02:16.0  Santiago  terraform init · plan · apply · output  (CloudShell)
+03:06.0  Erick     Erick
+03:09.0  Erick     Instancias EC2 en subredes privadas (us-east-1a y 1b)
+03:24.0  Erick     Endpoints /health y /status a través del balanceador
+03:54.0  Erick     Swagger: POST escribe en la principal, GET lee de la réplica
+04:36.0  Erick     curl al endpoint de validación
+04:44.0  Erick     GitHub Actions: lint, pytest, Docker y Terraform
+05:39.0  Nicolay   Nicolay
+05:42.0  Nicolay   Target group: 2 instancias sanas en 2 zonas
+05:58.0  Nicolay   Reparto del balanceador: 20 solicitudes a /status
+06:12.0  Nicolay   Prueba de carga en vivo con k6 (hasta 120 usuarios)
+06:52.0  Nicolay   CloudWatch: saturación con 2 EC2 y escalado a 4
+08:02.0  Nicolay   Resultados: 2 vs 4 instancias
+08:32.0  Nicolay   Auto Scaling: actividad disparada por las alarmas
+08:57.0  Nicolay   Gracias
+FIN  09:05.0
