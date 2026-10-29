@@ -21,11 +21,6 @@ data "aws_ami" "ubuntu" {
   }
 }
 
-# Cuenta de AWS que entrega los access logs del ALB en us-east-1
-data "aws_elb_service_account" "main" {}
-
-data "aws_caller_identity" "current" {}
-
 # ===========================================================================
 # 1. RED: VPC con tres capas (pública / aplicación / datos) en dos zonas
 # ===========================================================================
@@ -207,66 +202,7 @@ resource "aws_vpc_security_group_ingress_rule" "db_from_app" {
 }
 
 # ===========================================================================
-# 3. ALMACENAMIENTO: bucket S3 para los access logs del balanceador
-# ===========================================================================
-
-resource "random_id" "suffix" {
-  byte_length = 3
-}
-
-resource "aws_s3_bucket" "alb_logs" {
-  bucket        = "${local.name}-alb-logs-${random_id.suffix.hex}"
-  force_destroy = true
-  tags          = { Name = "${local.name}-alb-logs" }
-}
-
-resource "aws_s3_bucket_public_access_block" "alb_logs" {
-  bucket                  = aws_s3_bucket.alb_logs.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "alb_logs" {
-  bucket = aws_s3_bucket.alb_logs.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "alb_logs" {
-  bucket = aws_s3_bucket.alb_logs.id
-
-  rule {
-    id     = "expirar-logs"
-    status = "Enabled"
-    filter {}
-    expiration {
-      days = 7
-    }
-  }
-}
-
-resource "aws_s3_bucket_policy" "alb_logs" {
-  bucket = aws_s3_bucket.alb_logs.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Sid       = "ALBAccessLogs"
-      Effect    = "Allow"
-      Principal = { AWS = data.aws_elb_service_account.main.arn }
-      Action    = "s3:PutObject"
-      Resource  = "${aws_s3_bucket.alb_logs.arn}/alb/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
-    }]
-  })
-}
-
-# ===========================================================================
-# 4. BASE DE DATOS: RDS PostgreSQL principal + réplica de lectura en otra AZ
+# 3. BASE DE DATOS: RDS PostgreSQL principal + réplica de lectura en otra AZ
 # ===========================================================================
 
 # Terraform genera la contraseña y la guarda cifrada en SSM Parameter Store.
@@ -333,7 +269,7 @@ resource "aws_db_instance" "replica" {
 }
 
 # ===========================================================================
-# 5. CÓMPUTO: Launch Template + Auto Scaling Group en subredes privadas
+# 4. CÓMPUTO: Launch Template + Auto Scaling Group en subredes privadas
 # ===========================================================================
 
 resource "aws_launch_template" "app" {
@@ -384,7 +320,7 @@ resource "aws_launch_template" "app" {
 }
 
 # ===========================================================================
-# 6. BALANCEO: Application Load Balancer en las dos subredes públicas
+# 5. BALANCEO: Application Load Balancer en las dos subredes públicas
 # ===========================================================================
 
 resource "aws_lb" "app" {
@@ -394,15 +330,7 @@ resource "aws_lb" "app" {
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id
 
-  access_logs {
-    bucket  = aws_s3_bucket.alb_logs.id
-    prefix  = "alb"
-    enabled = true
-  }
-
   tags = { Name = "${local.name}-alb" }
-
-  depends_on = [aws_s3_bucket_policy.alb_logs]
 }
 
 resource "aws_lb_target_group" "app" {
@@ -448,6 +376,10 @@ resource "aws_autoscaling_group" "app" {
   health_check_grace_period = 300
   default_instance_warmup   = 120
 
+  # No bloquear el apply esperando capacidad: el ASG reintenta solo y el ALB
+  # decide cuándo una instancia está lista (health check).
+  wait_for_capacity_timeout = "0"
+
   launch_template {
     id      = aws_launch_template.app.id
     version = aws_launch_template.app.latest_version
@@ -491,7 +423,7 @@ resource "aws_autoscaling_policy" "cpu" {
 }
 
 # ===========================================================================
-# 7. MONITOREO: alarmas y dashboard de CloudWatch
+# 6. MONITOREO: alarmas y dashboard de CloudWatch
 # ===========================================================================
 
 resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {

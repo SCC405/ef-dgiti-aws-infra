@@ -18,7 +18,7 @@ pipeline CI/CD en GitHub Actions, pruebas de carga con k6 y monitoreo en CloudWa
 | Cómputo | Launch Template + Auto Scaling Group (mín 2, máx 4, t3.micro, Ubuntu 24.04 + Docker) | Una instancia por zona como mínimo: si cae una, la otra atiende y el ASG la reemplaza. Escala por CPU al 50 % |
 | Datos | RDS PostgreSQL 17 principal (AZ a) + réplica de lectura (AZ b) | Escrituras a la principal, lecturas a la réplica; cifrado en reposo; sin acceso público |
 | Seguridad | SG encadenados: Internet → ALB:80 → EC2:8000 → RDS:5432 | Cada capa solo acepta tráfico del Security Group anterior. Contraseña de BD en SSM Parameter Store (SecureString), IMDSv2 obligatorio |
-| Almacenamiento | S3 para access logs del ALB, EBS gp3 en EC2, almacenamiento RDS cifrado | Logs con expiración a 7 días, bucket privado y cifrado |
+| Almacenamiento | EBS gp3 en cada EC2, 20 GB cifrados en cada RDS | Los datos viven en RDS (con respaldo automático y réplica); las EC2 son desechables y se reconstruyen desde el código |
 | Monitoreo | Dashboard y 3 alarmas en CloudWatch | Solicitudes, latencia p95/p99, códigos HTTP, hosts sanos, CPU, instancias del ASG, RDS y retraso de la réplica |
 
 ## Endpoints

@@ -26,7 +26,7 @@
 !include AWSPuml/Compute/EC2Instance.puml
 !include AWSPuml/Compute/EC2AutoScaling.puml
 !include AWSPuml/Database/RDS.puml
-!include AWSPuml/Storage/SimpleStorageService.puml
+!include AWSPuml/Storage/ElasticBlockStoreVolumegp3.puml
 !include AWSPuml/Storage/ElasticBlockStoreVolumegp3.puml
 !include AWSPuml/ManagementGovernance/CloudWatch.puml
 !include AWSPuml/ManagementGovernance/CloudWatchAlarm.puml
@@ -56,9 +56,9 @@ GenericGroup(cicd, "Flujo de despliegue CI/CD") {
 
 AWSCloudGroup(aws, "AWS Academy - Región us-east-1") {
 
-  GenericGroup(soporte, "Servicios regionales de soporte") {
+  GenericGroup(soporte, "Almacenamiento, secretos y monitoreo") {
     SystemsManagerParameterStore(ssm, "SSM Parameter Store", "contraseña de la BD · (SecureString)")
-    SimpleStorageService(s3, "Amazon S3", "access logs del ALB · (privado, cifrado, 7 días)")
+    ElasticBlockStoreVolumegp3(ebs, "Amazon EBS gp3", "disco raíz de cada EC2 · RDS: 20 GB cifrados")
     CloudWatch(cw, "CloudWatch", "dashboard ef-dgiti · métricas ALB / EC2 / ASG / RDS")
     CloudWatchAlarm(alarm, "Alarmas", "hosts no sanos · 5XX / latencia p95")
   }
@@ -133,7 +133,7 @@ nat .[#E8710A].> igw
 ' Monitoreo y soporte (gris)
 ' ------------------------------------------------------------------
 ec2a .[#666666].> ssm : lee contraseña\n(LabInstanceProfile)
-alb .[#666666].> s3 : access logs
+ec2b .[#666666].> ebs : volumen
 alb .[#666666].> cw : métricas
 cw .[#666666].> alarm
 

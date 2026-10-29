@@ -26,6 +26,10 @@ else
   git clone https://github.com/SCC405/ef-dgiti-aws-infra.git ~/ef-dgiti-aws-infra
 fi
 
+# El Auto Scaling necesita su rol de servicio. Si se crea en el mismo momento que
+# el ASG, el primer lanzamiento falla mientras el rol se propaga: se crea antes.
+aws iam create-service-linked-role --aws-service-name autoscaling.amazonaws.com >/dev/null 2>&1 || true
+
 cd ~/ef-dgiti-aws-infra/infra
 [ -f terraform.tfvars ] || cp terraform.tfvars.example terraform.tfvars
 

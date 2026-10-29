@@ -59,10 +59,6 @@ output "db_password_parameter" {
   value       = aws_ssm_parameter.db_password.name
 }
 
-output "alb_logs_bucket" {
-  value = aws_s3_bucket.alb_logs.bucket
-}
-
 output "cloudwatch_dashboard_url" {
   value = "https://${var.aws_region}.console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards/dashboard/${aws_cloudwatch_dashboard.main.dashboard_name}"
 }
