@@ -51,7 +51,7 @@ Users(usuarios, "Usuarios", "navegador / Swagger / curl / k6")
 GenericGroup(cicd, "Flujo de despliegue CI/CD") {
   User(dev, "Equipo", "git push a main")
   GitRepository(repo, "GitHub", "código versionado")
-  DeveloperTools(gha, "GitHub Actions", "1. ruff + pytest · 2. Docker build + smoke test · 3. terraform fmt/validate · 4. deploy: instance refresh")
+  DeveloperTools(gha, "GitHub Actions", "1. ruff + pytest · 2. Docker build + smoke test · 3. terraform fmt/validate · 4. deploy: rolling update")
 }
 
 AWSCloudGroup(aws, "AWS Academy - Región us-east-1") {
@@ -125,7 +125,7 @@ rdsp -[#7B1FA2,bold]-> rdsr : replicación\nasíncrona
 ' ------------------------------------------------------------------
 dev -[#E8710A,bold]-> repo : push
 repo -[#E8710A,bold]-> gha : dispara
-gha -[#E8710A,bold]-> asgGroup : instance refresh\n(credenciales en GitHub Secrets)
+gha -[#E8710A,bold]-> asgGroup : rolling update\n(credenciales en GitHub Secrets)
 ec2b .[#E8710A].> nat : git clone + docker build
 nat .[#E8710A].> igw
 

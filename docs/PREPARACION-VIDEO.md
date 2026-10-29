@@ -55,7 +55,7 @@ laboratorio, así que se hace el mismo día de grabar, con el lab en verde:
    - `AWS_SECRET_ACCESS_KEY` = el valor de `aws_secret_access_key`
    - `AWS_SESSION_TOKEN` = el valor de `aws_session_token` (es largo, copiarlo completo)
 3. GitHub → **Actions** → **CI-CD** → **Run workflow**. Tarda unos 10 minutos
-   (el instance refresh cambia las instancias de a una). Debe quedar todo en verde.
+   (el rolling update cambia las instancias de a una). Debe quedar todo en verde.
 
 > Los valores no se ven después de guardarlos: GitHub los muestra como `***`.
 

@@ -13,6 +13,7 @@ env:
   AWS_REGION: us-east-1
   ASG_NAME: ef-dgiti-asg
   ALB_NAME: ef-dgiti-alb
+  TG_NAME: ef-dgiti-tg
 
 jobs:
   # -------------------------------------------------------------------------
@@ -99,7 +100,7 @@ jobs:
   #    Las credenciales llegan como GitHub Secrets, nunca están en el código.
   # -------------------------------------------------------------------------
   deploy:
-    name: 4 - Despliegue en AWS (instance refresh)
+    name: 4 - Despliegue en AWS (rolling update)
     runs-on: ubuntu-latest
     needs: [test, docker, terraform]
     if: github.event_name != 'pull_request'
@@ -130,37 +131,46 @@ jobs:
         if: steps.secrets.outputs.ok == 'true'
         run: aws sts get-caller-identity --query Account --output text | sed 's/^\(....\).*/\1********/'
 
-      - name: Iniciar instance refresh (las nuevas EC2 clonan este commit)
+      # AWS Academy bloquea StartInstanceRefresh, así que el rolling update se hace
+      # a mano: se reemplaza una instancia a la vez y se espera a que la nueva quede
+      # sana en el balanceador antes de seguir. El servicio nunca se queda sin instancias.
+      - name: Rolling update (las nuevas EC2 clonan este commit)
         if: steps.secrets.outputs.ok == 'true'
+        timeout-minutes: 30
         run: |
-          ID=$(aws autoscaling start-instance-refresh \
-                --auto-scaling-group-name "$ASG_NAME" \
-                --preferences '{"MinHealthyPercentage":50,"InstanceWarmup":120}' \
-                --query InstanceRefreshId --output text)
-          echo "REFRESH_ID=$ID" >> "$GITHUB_ENV"
-          echo "Instance refresh iniciado: $ID"
+          TG=$(aws elbv2 describe-target-groups --names "$TG_NAME" --query 'TargetGroups[0].TargetGroupArn' --output text)
+          read DESIRED IDS <<< $(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names "$ASG_NAME" \
+            --query 'AutoScalingGroups[0].[DesiredCapacity, join(` `, Instances[].InstanceId)]' --output text)
+          echo "Capacidad deseada: $DESIRED | instancias a reemplazar: $IDS"
 
-      - name: Esperar a que termine el rolling update
-        if: steps.secrets.outputs.ok == 'true'
-        timeout-minutes: 25
-        run: |
-          while true; do
-            read STATUS PCT <<< $(aws autoscaling describe-instance-refreshes \
-              --auto-scaling-group-name "$ASG_NAME" --instance-refresh-ids "$REFRESH_ID" \
-              --query 'InstanceRefreshes[0].[Status,PercentageComplete]' --output text)
-            echo "$(date +%T)  estado=$STATUS  avance=${PCT}%"
-            case "$STATUS" in
-              Successful) break ;;
-              Failed|Cancelled|RollbackSuccessful|RollbackFailed) exit 1 ;;
-            esac
-            sleep 30
+          for OLD in $IDS; do
+            echo "::group::Reemplazando $OLD"
+            aws autoscaling terminate-instance-in-auto-scaling-group \
+              --instance-id "$OLD" --no-should-decrement-desired-capacity --query 'Activity.Description' --output text
+            for i in $(seq 1 45); do
+              HEALTHY=$(aws elbv2 describe-target-health --target-group-arn "$TG" \
+                --query "length(TargetHealthDescriptions[?TargetHealth.State=='healthy' && Target.Id!='$OLD'])" --output text)
+              echo "$(date +%T)  sanas sin $OLD: $HEALTHY/$DESIRED"
+              [ "$HEALTHY" -ge "$DESIRED" ] && break
+              [ "$i" -eq 45 ] && { echo "::error::La instancia nueva no quedó sana"; exit 1; }
+              sleep 20
+            done
+            echo "::endgroup::"
           done
 
-      - name: Prueba de humo contra el ALB
+      - name: Prueba de humo contra el ALB (versión desplegada = este commit)
         if: steps.secrets.outputs.ok == 'true'
         run: |
           DNS=$(aws elbv2 describe-load-balancers --names "$ALB_NAME" --query 'LoadBalancers[0].DNSName' --output text)
-          curl -fs "http://$DNS/health"
-          echo
-          for i in 1 2 3 4 5 6; do curl -fs "http://$DNS/status" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d["instance_id"], d["availability_zone"], "version", d["version"], "db", d["database"]["primary"], d["database"]["replica"])'; done
-          echo "### Desplegado en http://$DNS" >> "$GITHUB_STEP_SUMMARY"
+          EXPECTED=${GITHUB_SHA::7}
+          curl -fs "http://$DNS/health"; echo
+          for i in 1 2 3 4 5 6; do
+            curl -fs "http://$DNS/status" | python3 -c '
+          import sys, json
+          d = json.load(sys.stdin)
+          print(d["instance_id"], d["availability_zone"], "version", d["version"], "db", d["database"]["primary"], d["database"]["replica"])
+          assert d["version"] == sys.argv[1], "version distinta a la del commit"
+          assert d["database"]["primary"] == "ok" and d["database"]["replica"] == "ok", "BD no disponible"
+          ' "$EXPECTED"
+          done
+          echo "### Desplegado $EXPECTED en http://$DNS" >> "$GITHUB_STEP_SUMMARY"

@@ -163,7 +163,7 @@ curl.exe http://<alb>/health
 > etapas.
 >
 > La **uno** valida el código con `ruff` y corre las pruebas con `pytest`: acá ven
-> las **11 pruebas pasando**, unitarias e integración, porque levantan la API completa
+> las **12 pruebas pasando**, unitarias e integración, porque levantan la API completa
 > contra una base de datos real en SQLite. Queda un reporte de las pruebas como
 > artefacto.
 >
@@ -175,7 +175,7 @@ curl.exe http://<alb>/health
 >
 > Y la **cuatro** despliega. Se conecta a AWS con credenciales guardadas como
 > **secretos de GitHub** —acá ven que están ocultos, nunca aparecen en el código ni en
-> los logs— y le pide al Auto Scaling un **instance refresh**: va cambiando las
+> los logs— y hace un **rolling update** del Auto Scaling: va cambiando las
 > instancias de a una, nunca baja del 50 % sanas, y cada instancia nueva clona el último
 > commit. O sea, se actualiza **sin tumbar el servicio**. Al final hace una prueba
 > contra el balanceador."

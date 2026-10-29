@@ -89,9 +89,9 @@ con 4, el mismo tráfico se atiende con el doble de capacidad y un cuarto de la 
 
 `push` a `main` →
 
-1. **Lint y pruebas**: `ruff` + `pytest` (11 pruebas unitarias e integración con SQLite) + reporte JUnit/cobertura como artefacto.
+1. **Lint y pruebas**: `ruff` + `pytest` (12 pruebas unitarias e integración con SQLite) + reporte JUnit/cobertura como artefacto.
 2. **Docker**: build de la imagen y smoke test del contenedor (`/health`, `/status`, `POST /api/items`).
 3. **Terraform**: `fmt -check`, `init`, `validate`.
-4. **Despliegue**: con las credenciales en *GitHub Secrets* (entorno `aws-academy`), inicia un *instance refresh* del ASG. Las EC2 nuevas clonan el último commit y el reemplazo es gradual (mínimo 50 % sanas), sin caída del servicio. Termina con una prueba de humo contra el ALB.
+4. **Despliegue**: con las credenciales en *GitHub Secrets* (entorno `aws-academy`), hace un *rolling update* del ASG: reemplaza las EC2 de a una y espera a que cada nueva quede sana en el balanceador antes de seguir, sin caída del servicio. Las EC2 nuevas clonan el último commit. Termina con una prueba de humo que verifica que el ALB responde con la versión de ese commit. (AWS Academy bloquea `StartInstanceRefresh`, por eso el reemplazo se hace con `terminate-instance-in-auto-scaling-group`.)
 
 Las credenciales de AWS Academy caducan con cada sesión del laboratorio; se actualizan con `scripts\set-github-secrets.ps1`.
