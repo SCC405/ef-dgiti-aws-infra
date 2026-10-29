@@ -1,0 +1,11 @@
+
+================ RESUMEN PRUEBA DE CARGA ================
+URL                         : http://ef-dgiti-alb-1296497317.us-east-1.elb.amazonaws.com
+Usuarios virtuales (máx)    : 150
+Solicitudes totales         : 44360
+Solicitudes por segundo     : 123.1
+Tiempo de respuesta prom.   : 211.5 ms
+Tiempo de respuesta p95     : 497.6 ms
+Tiempo de respuesta p99     : 776.0 ms
+Porcentaje de errores       : 0.00 %
+=========================================================

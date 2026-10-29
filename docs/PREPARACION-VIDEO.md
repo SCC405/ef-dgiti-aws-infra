@@ -39,7 +39,39 @@ con el mismo código de Terraform. Son 3 pasos y unos 20 minutos de espera.
 > CloudShell se cierra si pasan ~20 minutos sin tocar el teclado. Si se cierra durante
 > el apply, abrirlo de nuevo y repetir el paso 3: Terraform continúa donde quedó.
 
-## 3. Dejar abiertas las pestañas para grabar
+## 3. Tareas extra según la parte de cada uno
+
+### Santiago: secretos de GitHub para que el job de despliegue corra (5 min)
+
+El job "4 - Despliegue" (lo muestra Erick) se conecta a AWS con credenciales guardadas
+como secretos de GitHub. Las pone Santiago, que es el dueño del repo, con las de su
+cuenta (donde ya está todo desplegado). Caducan cada vez que se reinicia el
+laboratorio, así que se hace el mismo día de grabar, con el lab en verde:
+
+1. En la página del laboratorio: **ⓘ AWS Details** → junto a "AWS CLI" clic en **Show**.
+2. En GitHub: https://github.com/SCC405/ef-dgiti-aws-infra/settings/environments →
+   **aws-academy** → **Add environment secret**, tres veces:
+   - `AWS_ACCESS_KEY_ID` = el valor de `aws_access_key_id`
+   - `AWS_SECRET_ACCESS_KEY` = el valor de `aws_secret_access_key`
+   - `AWS_SESSION_TOKEN` = el valor de `aws_session_token` (es largo, copiarlo completo)
+3. GitHub → **Actions** → **CI-CD** → **Run workflow**. Tarda unos 10 minutos
+   (el instance refresh cambia las instancias de a una). Debe quedar todo en verde.
+
+> Los valores no se ven después de guardarlos: GitHub los muestra como `***`.
+
+### Nicolay: correr las pruebas de carga antes de grabar (20 min)
+
+Para que su dashboard de CloudWatch tenga las gráficas del guion, en PowerShell
+(desde la carpeta del repo clonado) y con la URL de **su** balanceador:
+
+```powershell
+k6 run -e BASE_URL=http://<su alb_dns_name> load-tests/k6-load.js
+```
+
+Esperar 5 minutos (el Auto Scaling sube de 2 a 4 y las nuevas quedan sanas) y correrla
+otra vez. Guardar los dos resúmenes que imprime k6: son los números de su parte.
+
+## 4. Dejar abiertas las pestañas para grabar
 
 Cada uno, en el orden de su parte del guion (`docs/GUION.md`):
 

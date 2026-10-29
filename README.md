@@ -66,6 +66,25 @@ salidas/              salidas reales de terraform init/plan/apply/output
 
 4. Al terminar: `scripts\destroy.ps1`.
 
+## Resultados de desempeño (k6, 29/10/2026)
+
+Misma prueba dos veces: 6 minutos, rampa hasta 150 usuarios virtuales, 70 % de tráfico a `/api/stress`.
+
+| | 2 instancias | 4 instancias (tras el auto scaling) |
+|---|---|---|
+| Solicitudes totales | 27.773 | 44.360 |
+| Solicitudes por segundo | 77 | **123** (+60 %) |
+| Tiempo promedio | 638 ms | **212 ms** |
+| p95 | 2.057 ms | **498 ms** (−76 %) |
+| p99 | 2.639 ms | 776 ms |
+| Errores | 0,05 % | **0 %** |
+| Pico en el ALB (CloudWatch) | ~5.500 req/min, plano (saturado) | 11.242 req/min |
+| CPU promedio del ASG (pico) | 91 % | 87 % |
+
+Con 2 instancias la CPU de las t3.micro llega al 90 % y el throughput se estanca. La
+alarma de *target tracking* (CPU > 50 % por 3 minutos) subió el ASG de 2 a 4 instancias;
+con 4, el mismo tráfico se atiende con el doble de capacidad y un cuarto de la latencia p95.
+
 ## Pipeline CI/CD
 
 `push` a `main` →
