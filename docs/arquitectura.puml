@@ -1,0 +1,148 @@
+@startuml arquitectura
+' Diagrama de infraestructura - EF DGITI
+' Iconos oficiales de AWS (aws-icons-for-plantuml)
+' Generar:  java -jar D:\PlantUML\plantuml-1.2026.6.jar -tpng docs\arquitectura.puml
+
+!define AWSPuml D:/PlantUML/aws-icons-for-plantuml-main/aws-icons-for-plantuml-main/dist
+!include AWSPuml/AWSCommon.puml
+
+!include AWSPuml/Groups/AWSCloud.puml
+!include AWSPuml/Groups/Region.puml
+!include AWSPuml/Groups/VPC.puml
+!include AWSPuml/Groups/AvailabilityZone.puml
+!include AWSPuml/Groups/PublicSubnet.puml
+!include AWSPuml/Groups/PrivateSubnet.puml
+!include AWSPuml/Groups/SecurityGroup.puml
+!include AWSPuml/Groups/AutoScalingGroup.puml
+!include AWSPuml/Groups/Generic.puml
+
+!include AWSPuml/General/Users.puml
+!include AWSPuml/General/User.puml
+!include AWSPuml/General/GitRepository.puml
+!include AWSPuml/DeveloperTools/DeveloperTools.puml
+!include AWSPuml/NetworkingContentDelivery/VPCInternetGateway.puml
+!include AWSPuml/NetworkingContentDelivery/VPCNATGateway.puml
+!include AWSPuml/NetworkingContentDelivery/ElasticLoadBalancingApplicationLoadBalancer.puml
+!include AWSPuml/Compute/EC2Instance.puml
+!include AWSPuml/Compute/EC2AutoScaling.puml
+!include AWSPuml/Database/RDS.puml
+!include AWSPuml/Storage/SimpleStorageService.puml
+!include AWSPuml/Storage/ElasticBlockStoreVolumegp3.puml
+!include AWSPuml/ManagementGovernance/CloudWatch.puml
+!include AWSPuml/ManagementGovernance/CloudWatchAlarm.puml
+!include AWSPuml/ManagementGovernance/SystemsManagerParameterStore.puml
+
+title EF DGITI - Arquitectura en AWS (Terraform + GitHub Actions)
+
+hide stereotype
+left to right direction
+skinparam shadowing false
+skinparam defaultTextAlignment center
+skinparam linetype ortho
+skinparam nodesep 40
+skinparam ranksep 70
+skinparam ArrowThickness 1.5
+
+' ------------------------------------------------------------------
+' Actores
+' ------------------------------------------------------------------
+Users(usuarios, "Usuarios", "navegador / Swagger / curl / k6")
+
+GenericGroup(cicd, "Flujo de despliegue CI/CD") {
+  User(dev, "Equipo", "git push a main")
+  GitRepository(repo, "GitHub", "código versionado")
+  DeveloperTools(gha, "GitHub Actions", "1. ruff + pytest · 2. Docker build + smoke test · 3. terraform fmt/validate · 4. deploy: instance refresh")
+}
+
+AWSCloudGroup(aws, "AWS Academy - Región us-east-1") {
+
+  GenericGroup(soporte, "Servicios regionales de soporte") {
+    SystemsManagerParameterStore(ssm, "SSM Parameter Store", "contraseña de la BD · (SecureString)")
+    SimpleStorageService(s3, "Amazon S3", "access logs del ALB · (privado, cifrado, 7 días)")
+    CloudWatch(cw, "CloudWatch", "dashboard ef-dgiti · métricas ALB / EC2 / ASG / RDS")
+    CloudWatchAlarm(alarm, "Alarmas", "hosts no sanos · 5XX / latencia p95")
+  }
+
+  VPCGroup(vpc, "VPC 10.20.0.0/16 (2 zonas de disponibilidad)") {
+
+    VPCInternetGateway(igw, "Internet Gateway", "entrada pública")
+
+    GenericGroup(capaPub, "Capa pública") {
+      PublicSubnetGroup(pub, "Subredes públicas\n10.20.1.0/24 (1a) | 10.20.2.0/24 (1b)") {
+        SecurityGroupGroup(sgalb, "SG-ALB: entrada 80 desde 0.0.0.0/0") {
+          ElasticLoadBalancingApplicationLoadBalancer(alb, "Application Load Balancer", "HTTP 80 | nodos en 1a y 1b · health check /health cada 15 s")
+        }
+        VPCNATGateway(nat, "NAT Gateway", "salida a Internet · de la capa privada")
+      }
+    }
+
+    AutoScalingGroupGroup(asgGroup, "Auto Scaling Group  (mín 2 | deseado 2 | máx 4 | escala con CPU > 50 %)") {
+      PrivateSubnetGroup(appa, "Privada app 10.20.11.0/24 - us-east-1a") {
+        SecurityGroupGroup(sga, "SG-APP: 8000 solo desde SG-ALB") {
+          EC2Instance(ec2a, "EC2 t3.micro", "Ubuntu 24.04 + Docker · FastAPI :8000 · EBS gp3")
+        }
+      }
+      PrivateSubnetGroup(appb, "Privada app 10.20.12.0/24 - us-east-1b") {
+        SecurityGroupGroup(sgb, "SG-APP: 8000 solo desde SG-ALB") {
+          EC2Instance(ec2b, "EC2 t3.micro", "Ubuntu 24.04 + Docker · FastAPI :8000 · EBS gp3")
+        }
+      }
+    }
+
+    GenericGroup(capaDatos, "Capa de datos (sin ruta a Internet)") {
+      PrivateSubnetGroup(dba, "Privada datos 10.20.21.0/24 - us-east-1a") {
+        SecurityGroupGroup(sgdba, "SG-DB: 5432 solo desde SG-APP") {
+          RDS(rdsp, "RDS PostgreSQL 17", "PRINCIPAL (escrituras) · db.t3.micro | cifrado")
+        }
+      }
+      PrivateSubnetGroup(dbb, "Privada datos 10.20.22.0/24 - us-east-1b") {
+        SecurityGroupGroup(sgdbb, "SG-DB: 5432 solo desde SG-APP") {
+          RDS(rdsr, "RDS PostgreSQL 17", "RÉPLICA de lectura · db.t3.micro | cifrado")
+        }
+      }
+    }
+  }
+}
+
+appa -[hidden]down-> appb
+dba -[hidden]down-> dbb
+alb -[hidden]down-> nat
+soporte -[hidden]down-> vpc
+
+' ------------------------------------------------------------------
+' Tráfico de usuarios (azul)
+' ------------------------------------------------------------------
+usuarios -[#1A73E8,bold]-> igw : HTTP 80
+igw -[#1A73E8,bold]-> alb
+alb -[#1A73E8,bold]-> ec2a : reparte\n:8000
+alb -[#1A73E8,bold]-> ec2b : reparte\n:8000
+ec2a -[#1A73E8]-> rdsp : escrituras\n5432
+ec2b -[#1A73E8]-> rdsr : lecturas\n5432
+rdsp -[#7B1FA2,bold]-> rdsr : replicación\nasíncrona
+
+' ------------------------------------------------------------------
+' Despliegue CI/CD (naranja)
+' ------------------------------------------------------------------
+dev -[#E8710A,bold]-> repo : push
+repo -[#E8710A,bold]-> gha : dispara
+gha -[#E8710A,bold]-> asgGroup : instance refresh\n(credenciales en GitHub Secrets)
+ec2b .[#E8710A].> nat : git clone + docker build
+nat .[#E8710A].> igw
+
+' ------------------------------------------------------------------
+' Monitoreo y soporte (gris)
+' ------------------------------------------------------------------
+ec2a .[#666666].> ssm : lee contraseña\n(LabInstanceProfile)
+alb .[#666666].> s3 : access logs
+alb .[#666666].> cw : métricas
+cw .[#666666].> alarm
+
+legend right
+  |= Color |= Flujo |
+  | <color:#1A73E8>━━━</color> | Tráfico de usuarios |
+  | <color:#E8710A>━━━</color> | Despliegue CI/CD |
+  | <color:#7B1FA2>━━━</color> | Replicación RDS |
+  | <color:#666666>┄┄┄</color> | Monitoreo / soporte |
+endlegend
+
+@enduml
