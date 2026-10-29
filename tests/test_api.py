@@ -95,6 +95,22 @@ def test_stress_limita_parametro(client):
     assert client.get("/api/stress", params={"n": 10_000_000}).status_code == 422
 
 
+def test_reconecta_cuando_la_bd_vuelve(monkeypatch):
+    from app import db as db_module
+
+    database = db_module.Database()
+    monkeypatch.setattr(db_module.config, "database_urls", lambda: (_ for _ in ()).throw(RuntimeError("SSM denegado")))
+    assert database.ensure_connected() is False
+    assert database.last_error == "SSM denegado"
+
+    # Pasado el intervalo de reintento y con la BD disponible, se conecta sola.
+    monkeypatch.setattr(db_module.config, "database_urls", lambda: ("sqlite://", "sqlite://"))
+    database._last_attempt = float("-inf")
+    assert database.ensure_connected() is True
+    assert database.last_error is None
+    assert database.ping(database.primary) == "ok"
+
+
 def test_swagger_disponible(client):
     assert client.get("/docs").status_code == 200
     assert client.get("/openapi.json").json()["info"]["title"].startswith("EF DGITI")

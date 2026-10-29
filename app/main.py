@@ -57,17 +57,12 @@ INSTANCE = _instance_metadata()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # RDS puede tardar en aceptar conexiones; se reintenta sin tumbar la app,
-    # así /health sigue respondiendo y el balanceador no saca la instancia.
-    for attempt in range(1, 6):
-        try:
-            db.connect()
-            logger.info("Base de datos conectada en el intento %s", attempt)
-            break
-        except Exception as exc:  # noqa: BLE001
-            db.last_error = str(exc).splitlines()[0]
-            logger.warning("BD no disponible (intento %s): %s", attempt, db.last_error)
-            time.sleep(3)
+    # Si RDS todavía no responde, la app arranca igual: /health sigue en 200 para
+    # el balanceador y la conexión se reintenta en las siguientes solicitudes.
+    if db.ensure_connected():
+        logger.info("Base de datos conectada")
+    else:
+        logger.warning("BD no disponible, se reintentará: %s", db.last_error)
     yield
 
 
@@ -90,6 +85,7 @@ def health():
 
 @app.get("/status", tags=["validación"])
 def status():
+    db.ensure_connected()
     return {
         "service": config.APP_NAME,
         "version": config.APP_VERSION,
@@ -104,7 +100,7 @@ def status():
 
 
 def _require_db() -> None:
-    if db.primary is None:
+    if not db.ensure_connected():
         raise HTTPException(status_code=503, detail=f"Base de datos no disponible: {db.last_error}")
 
 

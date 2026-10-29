@@ -7,6 +7,7 @@ Se manejan dos motores:
   Las consultas de lectura de la API van aquí para descargar a la principal.
 """
 
+import time
 from datetime import datetime, timezone
 
 from sqlalchemy import (
@@ -38,18 +39,43 @@ items = Table(
 )
 
 
+RETRY_SECONDS = 10
+
+
 class Database:
     def __init__(self) -> None:
         self.primary: Engine | None = None
         self.replica: Engine | None = None
         self.last_error: str | None = None
+        self._last_attempt = float("-inf")
 
     def connect(self) -> None:
         primary_url, replica_url = config.database_urls()
-        self.primary = _make_engine(primary_url)
+        primary = _make_engine(primary_url)
+        metadata.create_all(primary)
         # Con SQLite en memoria la "réplica" es la misma base.
-        self.replica = self.primary if replica_url == primary_url else _make_engine(replica_url)
-        metadata.create_all(self.primary)
+        self.replica = primary if replica_url == primary_url else _make_engine(replica_url)
+        self.primary = primary
+        self.last_error = None
+
+    def ensure_connected(self) -> bool:
+        """Conecta si aún no hay conexión, como máximo un intento cada RETRY_SECONDS.
+
+        Si la instancia arranca cuando RDS o SSM todavía no responden (por ejemplo,
+        mientras el laboratorio de AWS Academy está detenido), la app se recupera
+        sola en cuanto vuelven, sin reiniciar el contenedor.
+        """
+        if self.primary is not None:
+            return True
+        if time.monotonic() - self._last_attempt < RETRY_SECONDS:
+            return False
+        self._last_attempt = time.monotonic()
+        try:
+            self.connect()
+            return True
+        except Exception as exc:  # noqa: BLE001 - se reporta en /status
+            self.last_error = str(exc).splitlines()[0]
+            return False
 
     def ping(self, engine: Engine | None) -> str:
         if engine is None:
